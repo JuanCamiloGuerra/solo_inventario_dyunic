@@ -58,34 +58,30 @@ def render_inventory_table(df: pd.DataFrame) -> None:
     for _, row in df.iterrows():
         status = row["ESTADO"]
         rows.append(
-            f"""
-            <tr>
-                <td>{escape(row["colegio"])}</td>
-                <td>{escape(row["ID_BUSQUEDA"])}</td>
-                <td class="number">{int(row["INVENTARIO"]):,}</td>
-                <td><span class="status-pill {status_class(status)}">{escape(status)}</span></td>
-            </tr>
-            """
+            "<tr>"
+            f"<td>{escape(row['colegio'])}</td>"
+            f"<td>{escape(row['ID_BUSQUEDA'])}</td>"
+            f"<td class=\"number\">{int(row['INVENTARIO']):,}</td>"
+            f"<td><span class=\"status-pill {status_class(status)}\">{escape(status)}</span></td>"
+            "</tr>"
         )
 
     st.markdown(
-        f"""
-        <div class="table-wrap">
-            <table class="inventory-table">
-                <thead>
-                    <tr>
-                        <th>Colegio</th>
-                        <th>Referencia completa</th>
-                        <th>Inv.</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(rows)}
-                </tbody>
-            </table>
-        </div>
-        """,
+        (
+            '<div class="table-wrap">'
+            '<table class="inventory-table">'
+            "<thead>"
+            "<tr>"
+            "<th>Colegio</th>"
+            "<th>Referencia completa</th>"
+            "<th>Inv.</th>"
+            "<th>Estado</th>"
+            "</tr>"
+            "</thead>"
+            f"<tbody>{''.join(rows)}</tbody>"
+            "</table>"
+            "</div>"
+        ),
         unsafe_allow_html=True,
     )
 
