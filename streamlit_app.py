@@ -74,11 +74,19 @@ st.markdown(
         opacity: .9;
     }
     div[data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
+        background: #111827;
+        border: 1px solid #263244;
         border-radius: 8px;
         padding: .9rem 1rem;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .24);
+    }
+    div[data-testid="stMetricLabel"] p {
+        color: #cbd5e1;
+        font-weight: 700;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #f8fafc;
+        font-weight: 800;
     }
     .section-title {
         font-size: 1.15rem;
