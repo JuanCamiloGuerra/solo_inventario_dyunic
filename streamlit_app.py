@@ -1,3 +1,4 @@
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -10,7 +11,7 @@ REQUIRED_COLUMNS = ["colegio", "PRODUCTO", "TALLA", "INVENTARIO", "ID_BUSQUEDA"]
 
 st.set_page_config(
     page_title="Inventario Dyunic",
-    layout="wide",
+    layout="centered",
 )
 
 
@@ -42,33 +43,63 @@ def status_for_stock(stock: int, low_limit: int, ok_limit: int) -> str:
     return "Alto"
 
 
+def status_class(status: str) -> str:
+    return {
+        "Agotado": "critical",
+        "Bajo": "low",
+        "Bien": "ok",
+        "Alto": "high",
+    }.get(status, "ok")
+
+
+def render_priority_card(row: pd.Series) -> None:
+    status = row["ESTADO"]
+    css_class = status_class(status)
+
+    st.markdown(
+        f"""
+        <div class="priority-card {css_class}">
+            <div class="card-top">
+                <span>{escape(row["colegio"])}</span>
+                <strong>{escape(status)}</strong>
+            </div>
+            <div class="reference">{escape(row["ID_BUSQUEDA"])}</div>
+            <div class="stock">{int(row["INVENTARIO"]):,} unidades disponibles</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1.5rem;
+        max-width: 760px;
+        padding: 1rem .85rem 2rem;
     }
     .hero {
         background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0f766e 100%);
         border-radius: 10px;
-        padding: 1.5rem 1.75rem;
         color: white;
-        margin-bottom: 1rem;
+        margin-bottom: .9rem;
+        padding: 1.1rem 1.2rem;
     }
     .hero h1 {
-        font-size: 2rem;
-        margin: 0 0 .25rem 0;
+        font-size: 1.55rem;
+        margin: 0 0 .2rem 0;
     }
     .hero p {
+        font-size: .92rem;
         margin: 0;
-        opacity: .9;
+        opacity: .92;
     }
     div[data-testid="stMetric"] {
         background: #111827;
         border: 1px solid #263244;
         border-radius: 8px;
-        padding: .9rem 1rem;
         box-shadow: 0 1px 2px rgba(0, 0, 0, .24);
+        padding: .8rem .9rem;
     }
     div[data-testid="stMetricLabel"] p {
         color: #cbd5e1;
@@ -76,12 +107,59 @@ st.markdown(
     }
     div[data-testid="stMetricValue"] {
         color: #f8fafc;
+        font-size: 1.45rem;
         font-weight: 800;
     }
     .section-title {
-        font-size: 1.15rem;
+        font-size: 1.12rem;
+        font-weight: 800;
+        margin: 1rem 0 .35rem 0;
+    }
+    .priority-card {
+        background: #111827;
+        border: 1px solid #263244;
+        border-left: 6px solid #16a34a;
+        border-radius: 8px;
+        margin-bottom: .65rem;
+        padding: .85rem .95rem;
+    }
+    .priority-card.critical {
+        border-left-color: #dc2626;
+    }
+    .priority-card.low {
+        border-left-color: #f97316;
+    }
+    .priority-card.high {
+        border-left-color: #2563eb;
+    }
+    .card-top {
+        align-items: center;
+        color: #cbd5e1;
+        display: flex;
+        font-size: .82rem;
         font-weight: 700;
-        margin: .5rem 0 .2rem 0;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .28rem;
+    }
+    .card-top strong {
+        background: rgba(255, 255, 255, .09);
+        border-radius: 999px;
+        color: #f8fafc;
+        padding: .16rem .55rem;
+        white-space: nowrap;
+    }
+    .reference {
+        color: #f8fafc;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+    .stock {
+        color: #e2e8f0;
+        font-size: .9rem;
+        margin-top: .38rem;
     }
     </style>
     """,
@@ -92,138 +170,90 @@ st.markdown(
 try:
     inventory = load_inventory()
 except FileNotFoundError:
-    st.error("No encontré inventario.csv en el repositorio.")
+    st.error("No encontre inventario.csv en el repositorio.")
     st.stop()
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
 
 
-with st.sidebar:
-    st.header("Filtros")
+st.markdown(
+    """
+    <div class="hero">
+        <h1>Inventario Dyunic</h1>
+        <p>Prioridades de inventario para revisar rapido desde el celular.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-    schools = sorted(inventory["colegio"].dropna().unique())
-
-    selected_schools = st.multiselect("Colegio", schools, placeholder="Todos")
+with st.expander("Filtros", expanded=True):
+    schools = ["Todos"] + sorted(inventory["colegio"].dropna().unique())
+    selected_school = st.selectbox("Colegio", schools)
 
     id_source = inventory.copy()
-    if selected_schools:
-        id_source = id_source[id_source["colegio"].isin(selected_schools)]
+    if selected_school != "Todos":
+        id_source = id_source[id_source["colegio"] == selected_school]
 
     search_ids = sorted(id_source["ID_BUSQUEDA"].dropna().unique())
     selected_search_ids = st.multiselect("Referencia completa", search_ids, placeholder="Todas")
 
-    st.divider()
-    st.subheader("Semáforo")
+with st.expander("Semaforo", expanded=False):
     low_limit = st.number_input("Bajo hasta", min_value=1, max_value=50, value=3, step=1)
     ok_limit = st.number_input("Bien hasta", min_value=low_limit + 1, max_value=100, value=8, step=1)
 
 
 filtered = inventory.copy()
 
-if selected_schools:
-    filtered = filtered[filtered["colegio"].isin(selected_schools)]
+if selected_school != "Todos":
+    filtered = filtered[filtered["colegio"] == selected_school]
 if selected_search_ids:
     filtered = filtered[filtered["ID_BUSQUEDA"].isin(selected_search_ids)]
-
-filtered["ESTADO"] = filtered["INVENTARIO"].apply(lambda stock: status_for_stock(stock, low_limit, ok_limit))
-
-total_references = len(filtered)
-total_units = int(filtered["INVENTARIO"].sum())
-out_of_stock = int((filtered["INVENTARIO"] <= 0).sum())
-low_stock = int(((filtered["INVENTARIO"] > 0) & (filtered["INVENTARIO"] <= low_limit)).sum())
-ok_stock = int(((filtered["INVENTARIO"] > low_limit) & (filtered["INVENTARIO"] <= ok_limit)).sum())
-high_stock = int((filtered["INVENTARIO"] > ok_limit).sum())
-
-st.markdown(
-    """
-    <div class="hero">
-        <h1>Inventario Dyunic</h1>
-        <p>Vista rápida para priorizar producción por colegio y referencia completa.</p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-metric_1, metric_2, metric_3, metric_4, metric_5 = st.columns(5)
-metric_1.metric("Referencias", f"{total_references:,}")
-metric_2.metric("Unidades", f"{total_units:,}")
-metric_3.metric("Agotadas", f"{out_of_stock:,}")
-metric_4.metric("Bajitas", f"{low_stock:,}")
-metric_5.metric("Bien / alto", f"{ok_stock + high_stock:,}")
 
 if filtered.empty:
     st.warning("No hay registros con los filtros seleccionados.")
     st.stop()
 
-priority = filtered[filtered["ESTADO"].isin(["Agotado", "Bajo"])].sort_values(
-    ["INVENTARIO", "colegio", "ID_BUSQUEDA"],
-    ascending=[True, True, True],
+summary = (
+    filtered.groupby(["colegio", "ID_BUSQUEDA"], as_index=False)
+    .agg(INVENTARIO=("INVENTARIO", "sum"))
+    .sort_values(["INVENTARIO", "colegio", "ID_BUSQUEDA"], ascending=[True, True, True])
 )
+summary["ESTADO"] = summary["INVENTARIO"].apply(lambda stock: status_for_stock(stock, low_limit, ok_limit))
 
-left, right = st.columns([1.35, 1])
+total_references = len(summary)
+total_units = int(summary["INVENTARIO"].sum())
+out_of_stock = int((summary["INVENTARIO"] <= 0).sum())
+low_stock = int(((summary["INVENTARIO"] > 0) & (summary["INVENTARIO"] <= low_limit)).sum())
+needs_attention = summary[summary["ESTADO"].isin(["Agotado", "Bajo"])]
 
-with left:
-    st.markdown('<div class="section-title">Prioridad de producción</div>', unsafe_allow_html=True)
-    st.caption("Primero aparecen las referencias agotadas y luego las de menor inventario.")
+metric_1, metric_2 = st.columns(2)
+metric_1.metric("Agotadas", f"{out_of_stock:,}")
+metric_2.metric("Bajitas", f"{low_stock:,}")
 
-    priority_view = priority[["colegio", "ID_BUSQUEDA", "INVENTARIO", "ESTADO"]].head(80)
+metric_3, metric_4 = st.columns(2)
+metric_3.metric("Referencias", f"{total_references:,}")
+metric_4.metric("Unidades", f"{total_units:,}")
+
+st.markdown('<div class="section-title">Prioridad de produccion</div>', unsafe_allow_html=True)
+st.caption("Primero aparecen las referencias agotadas y luego las de menor inventario.")
+
+if needs_attention.empty:
+    st.success("No hay referencias agotadas ni bajitas con los filtros actuales.")
+else:
+    for _, row in needs_attention.head(60).iterrows():
+        render_priority_card(row)
+
+with st.expander("Ver detalle completo", expanded=False):
+    detail = summary.sort_values(["colegio", "ID_BUSQUEDA"])
     st.dataframe(
-        priority_view,
+        detail,
         use_container_width=True,
         hide_index=True,
-        height=430,
+        height=420,
         column_config={
             "ID_BUSQUEDA": st.column_config.TextColumn("Referencia completa", width="large"),
             "INVENTARIO": st.column_config.NumberColumn("Inventario", width="small"),
             "ESTADO": st.column_config.TextColumn("Estado", width="small"),
         },
     )
-
-with right:
-    st.markdown('<div class="section-title">Estado general</div>', unsafe_allow_html=True)
-
-    status_order = ["Agotado", "Bajo", "Bien", "Alto"]
-    status_summary = (
-        filtered["ESTADO"]
-        .value_counts()
-        .reindex(status_order, fill_value=0)
-        .rename_axis("Estado")
-        .reset_index(name="Referencias")
-    )
-    st.bar_chart(status_summary, x="Estado", y="Referencias", color="#1e3a8a")
-
-    school_risk = (
-        filtered.assign(En_riesgo=filtered["ESTADO"].isin(["Agotado", "Bajo"]))
-        .groupby("colegio", as_index=False)
-        .agg(Referencias=("ID_BUSQUEDA", "count"), En_riesgo=("En_riesgo", "sum"), Unidades=("INVENTARIO", "sum"))
-    )
-    school_risk["% En riesgo"] = (school_risk["En_riesgo"] / school_risk["Referencias"] * 100).round(1)
-    school_risk = school_risk.sort_values(["% En riesgo", "En_riesgo"], ascending=False).head(8)
-
-    st.markdown('<div class="section-title">Colegios con más riesgo</div>', unsafe_allow_html=True)
-    st.dataframe(school_risk, use_container_width=True, hide_index=True, height=250)
-
-st.markdown('<div class="section-title">Resumen por producto</div>', unsafe_allow_html=True)
-
-product_summary = (
-    filtered.groupby("PRODUCTO", as_index=False)
-    .agg(
-        Referencias=("ID_BUSQUEDA", "count"),
-        Unidades=("INVENTARIO", "sum"),
-        Agotadas=("ESTADO", lambda status: (status == "Agotado").sum()),
-        Bajitas=("ESTADO", lambda status: (status == "Bajo").sum()),
-    )
-    .sort_values(["Agotadas", "Bajitas", "Unidades"], ascending=[False, False, True])
-)
-
-st.dataframe(product_summary, use_container_width=True, hide_index=True, height=320)
-
-st.markdown('<div class="section-title">Detalle completo</div>', unsafe_allow_html=True)
-st.dataframe(
-    filtered[["colegio", "PRODUCTO", "TALLA", "INVENTARIO", "ESTADO", "ID_BUSQUEDA"]]
-    .sort_values(["colegio", "ID_BUSQUEDA"]),
-    use_container_width=True,
-    hide_index=True,
-    height=420,
-)
