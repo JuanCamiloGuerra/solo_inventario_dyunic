@@ -52,19 +52,38 @@ def status_class(status: str) -> str:
     }.get(status, "ok")
 
 
-def render_priority_card(row: pd.Series) -> None:
-    status = row["ESTADO"]
-    css_class = status_class(status)
+def render_inventory_table(df: pd.DataFrame) -> None:
+    rows = []
+
+    for _, row in df.iterrows():
+        status = row["ESTADO"]
+        rows.append(
+            f"""
+            <tr>
+                <td>{escape(row["colegio"])}</td>
+                <td>{escape(row["ID_BUSQUEDA"])}</td>
+                <td class="number">{int(row["INVENTARIO"]):,}</td>
+                <td><span class="status-pill {status_class(status)}">{escape(status)}</span></td>
+            </tr>
+            """
+        )
 
     st.markdown(
         f"""
-        <div class="priority-card {css_class}">
-            <div class="card-top">
-                <span>{escape(row["colegio"])}</span>
-                <strong>{escape(status)}</strong>
-            </div>
-            <div class="reference">{escape(row["ID_BUSQUEDA"])}</div>
-            <div class="stock">{int(row["INVENTARIO"]):,} unidades disponibles</div>
+        <div class="table-wrap">
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th>Colegio</th>
+                        <th>Referencia completa</th>
+                        <th>Inv.</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows)}
+                </tbody>
+            </table>
         </div>
         """,
         unsafe_allow_html=True,
@@ -115,51 +134,60 @@ st.markdown(
         font-weight: 800;
         margin: 1rem 0 .35rem 0;
     }
-    .priority-card {
-        background: #111827;
+    .table-wrap {
         border: 1px solid #263244;
-        border-left: 6px solid #16a34a;
         border-radius: 8px;
-        margin-bottom: .65rem;
-        padding: .85rem .95rem;
+        max-height: 68vh;
+        overflow: auto;
     }
-    .priority-card.critical {
-        border-left-color: #dc2626;
+    .inventory-table {
+        border-collapse: collapse;
+        font-size: .84rem;
+        width: 100%;
     }
-    .priority-card.low {
-        border-left-color: #f97316;
-    }
-    .priority-card.high {
-        border-left-color: #2563eb;
-    }
-    .card-top {
-        align-items: center;
+    .inventory-table th {
+        background: #111827;
         color: #cbd5e1;
-        display: flex;
-        font-size: .82rem;
-        font-weight: 700;
-        justify-content: space-between;
-        gap: .75rem;
-        margin-bottom: .28rem;
-    }
-    .card-top strong {
-        background: rgba(255, 255, 255, .09);
-        border-radius: 999px;
-        color: #f8fafc;
-        padding: .16rem .55rem;
-        white-space: nowrap;
-    }
-    .reference {
-        color: #f8fafc;
-        font-size: 1rem;
         font-weight: 800;
-        line-height: 1.25;
+        padding: .55rem .5rem;
+        position: sticky;
+        text-align: left;
+        top: 0;
+        z-index: 1;
+    }
+    .inventory-table td {
+        border-top: 1px solid #263244;
+        color: #f8fafc;
+        padding: .55rem .5rem;
+        vertical-align: top;
+    }
+    .inventory-table td:nth-child(2) {
         overflow-wrap: anywhere;
     }
-    .stock {
-        color: #e2e8f0;
-        font-size: .9rem;
-        margin-top: .38rem;
+    .inventory-table .number {
+        text-align: right;
+        white-space: nowrap;
+    }
+    .status-pill {
+        border-radius: 999px;
+        color: white;
+        display: inline-block;
+        font-size: .76rem;
+        font-weight: 800;
+        padding: .18rem .5rem;
+        white-space: nowrap;
+    }
+    .status-pill.critical {
+        background: #dc2626;
+    }
+    .status-pill.low {
+        background: #f97316;
+    }
+    .status-pill.ok {
+        background: #16a34a;
+    }
+    .status-pill.high {
+        background: #2563eb;
     }
     </style>
     """,
@@ -181,7 +209,7 @@ st.markdown(
     """
     <div class="hero">
         <h1>Inventario Dyunic</h1>
-        <p>Prioridades de inventario para revisar rapido desde el celular.</p>
+        <p>Inventario actualizado para revisar rapido desde el celular.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -225,7 +253,6 @@ total_references = len(summary)
 total_units = int(summary["INVENTARIO"].sum())
 out_of_stock = int((summary["INVENTARIO"] <= 0).sum())
 low_stock = int(((summary["INVENTARIO"] > 0) & (summary["INVENTARIO"] <= low_limit)).sum())
-needs_attention = summary[summary["ESTADO"].isin(["Agotado", "Bajo"])]
 
 metric_1, metric_2 = st.columns(2)
 metric_1.metric("Agotadas", f"{out_of_stock:,}")
@@ -235,25 +262,8 @@ metric_3, metric_4 = st.columns(2)
 metric_3.metric("Referencias", f"{total_references:,}")
 metric_4.metric("Unidades", f"{total_units:,}")
 
-st.markdown('<div class="section-title">Prioridad de produccion</div>', unsafe_allow_html=True)
-st.caption("Primero aparecen las referencias agotadas y luego las de menor inventario.")
+st.markdown('<div class="section-title">Ver detalle completo</div>', unsafe_allow_html=True)
+st.caption("La columna Estado queda coloreada segun el nivel de inventario.")
 
-if needs_attention.empty:
-    st.success("No hay referencias agotadas ni bajitas con los filtros actuales.")
-else:
-    for _, row in needs_attention.head(60).iterrows():
-        render_priority_card(row)
-
-with st.expander("Ver detalle completo", expanded=False):
-    detail = summary.sort_values(["colegio", "ID_BUSQUEDA"])
-    st.dataframe(
-        detail,
-        use_container_width=True,
-        hide_index=True,
-        height=420,
-        column_config={
-            "ID_BUSQUEDA": st.column_config.TextColumn("Referencia completa", width="large"),
-            "INVENTARIO": st.column_config.NumberColumn("Inventario", width="small"),
-            "ESTADO": st.column_config.TextColumn("Estado", width="small"),
-        },
-    )
+detail = summary.sort_values(["INVENTARIO", "colegio", "ID_BUSQUEDA"], ascending=[True, True, True])
+render_inventory_table(detail)
