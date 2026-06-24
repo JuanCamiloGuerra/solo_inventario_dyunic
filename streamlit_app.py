@@ -113,12 +113,15 @@ with st.sidebar:
     st.header("Filtros")
 
     schools = sorted(inventory["colegio"].dropna().unique())
-    products = sorted(inventory["PRODUCTO"].dropna().unique())
-    sizes = sorted(inventory["TALLA"].dropna().unique())
 
     selected_schools = st.multiselect("Colegio", schools, placeholder="Todos")
-    selected_products = st.multiselect("Producto", products, placeholder="Todos")
-    selected_sizes = st.multiselect("Talla", sizes, placeholder="Todas")
+
+    id_source = inventory.copy()
+    if selected_schools:
+        id_source = id_source[id_source["colegio"].isin(selected_schools)]
+
+    search_ids = sorted(id_source["ID_BUSQUEDA"].dropna().unique())
+    selected_search_ids = st.multiselect("Referencia completa", search_ids, placeholder="Todas")
 
     st.divider()
     st.subheader("Semáforo")
@@ -130,10 +133,8 @@ filtered = inventory.copy()
 
 if selected_schools:
     filtered = filtered[filtered["colegio"].isin(selected_schools)]
-if selected_products:
-    filtered = filtered[filtered["PRODUCTO"].isin(selected_products)]
-if selected_sizes:
-    filtered = filtered[filtered["TALLA"].isin(selected_sizes)]
+if selected_search_ids:
+    filtered = filtered[filtered["ID_BUSQUEDA"].isin(selected_search_ids)]
 
 filtered["ESTADO"] = filtered["INVENTARIO"].apply(lambda stock: status_for_stock(stock, low_limit, ok_limit))
 
@@ -148,7 +149,7 @@ st.markdown(
     """
     <div class="hero">
         <h1>Inventario Dyunic</h1>
-        <p>Vista rápida para priorizar producción por colegio, producto y talla.</p>
+        <p>Vista rápida para priorizar producción por colegio y referencia completa.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -166,8 +167,8 @@ if filtered.empty:
     st.stop()
 
 priority = filtered[filtered["ESTADO"].isin(["Agotado", "Bajo"])].sort_values(
-    ["INVENTARIO", "colegio", "PRODUCTO", "TALLA"],
-    ascending=[True, True, True, True],
+    ["INVENTARIO", "colegio", "ID_BUSQUEDA"],
+    ascending=[True, True, True],
 )
 
 left, right = st.columns([1.35, 1])
@@ -176,7 +177,7 @@ with left:
     st.markdown('<div class="section-title">Prioridad de producción</div>', unsafe_allow_html=True)
     st.caption("Primero aparecen las referencias agotadas y luego las de menor inventario.")
 
-    priority_view = priority[["colegio", "PRODUCTO", "TALLA", "INVENTARIO", "ESTADO"]].head(80)
+    priority_view = priority[["colegio", "ID_BUSQUEDA", "INVENTARIO", "ESTADO"]].head(80)
     st.dataframe(
         priority_view.style.map(status_color, subset=["ESTADO"]),
         use_container_width=True,
@@ -226,7 +227,7 @@ st.dataframe(product_summary, use_container_width=True, hide_index=True, height=
 st.markdown('<div class="section-title">Detalle completo</div>', unsafe_allow_html=True)
 st.dataframe(
     filtered[["colegio", "PRODUCTO", "TALLA", "INVENTARIO", "ESTADO", "ID_BUSQUEDA"]]
-    .sort_values(["colegio", "PRODUCTO", "TALLA"]),
+    .sort_values(["colegio", "ID_BUSQUEDA"]),
     use_container_width=True,
     hide_index=True,
     height=420,
