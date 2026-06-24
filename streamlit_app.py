@@ -42,16 +42,6 @@ def status_for_stock(stock: int, low_limit: int, ok_limit: int) -> str:
     return "Alto"
 
 
-def status_color(status: str) -> str:
-    colors = {
-        "Agotado": "#dc2626",
-        "Bajo": "#f97316",
-        "Bien": "#16a34a",
-        "Alto": "#2563eb",
-    }
-    return f"background-color: {colors.get(status, '#64748b')}; color: white;"
-
-
 st.markdown(
     """
     <style>
@@ -179,10 +169,15 @@ with left:
 
     priority_view = priority[["colegio", "ID_BUSQUEDA", "INVENTARIO", "ESTADO"]].head(80)
     st.dataframe(
-        priority_view.style.map(status_color, subset=["ESTADO"]),
+        priority_view,
         use_container_width=True,
         hide_index=True,
         height=430,
+        column_config={
+            "ID_BUSQUEDA": st.column_config.TextColumn("Referencia completa", width="large"),
+            "INVENTARIO": st.column_config.NumberColumn("Inventario", width="small"),
+            "ESTADO": st.column_config.TextColumn("Estado", width="small"),
+        },
     )
 
 with right:
